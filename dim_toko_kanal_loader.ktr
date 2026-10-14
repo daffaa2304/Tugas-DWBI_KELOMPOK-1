@@ -1,0 +1,267 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<transformation>
+  <info>
+    <name>dim_toko_kanal_loader</name>
+    <description>Memuat Dimensi Toko dan Kanal dengan Standarisasi ref_kota.csv</description>
+    <trans_version>1.0</trans_version>
+    <trans_type>Normal</trans_type>
+    <directory>/</directory>
+  </info>
+  
+  <connection>
+    <name>nrg_dw_mysql</name>
+    <server>localhost</server>
+    <type>MYSQL</type>
+    <access>Native</access>
+    <database>nrg_dw</database>
+    <port>3306</port>
+    <username>root</username>
+    <password></password>
+    <servername/>
+    <data_tablespace/>
+    <index_tablespace/>
+    <attributes>
+      <attribute><code>FORCE_IDENTIFIERS_TO_LOWERCASE</code><attribute>N</attribute></attribute>
+      <attribute><code>FORCE_IDENTIFIERS_TO_UPPERCASE</code><attribute>N</attribute></attribute>
+      <attribute><code>IS_CLUSTERED</code><attribute>N</attribute></attribute>
+      <attribute><code>PORT_NUMBER</code><attribute>3306</attribute></attribute>
+      <attribute><code>PRESERVE_RESERVED_WORD_CASE</code><attribute>Y</attribute></attribute>
+      <attribute><code>QUOTE_ALL_FIELDS</code><attribute>N</attribute></attribute>
+      <attribute><code>STREAM_RESULTS</code><attribute>Y</attribute></attribute>
+      <attribute><code>SUPPORTS_BOOLEAN_DATA_TYPE</code><attribute>Y</attribute></attribute>
+      <attribute><code>SUPPORTS_TIMESTAMP_DATA_TYPE</code><attribute>Y</attribute></attribute>
+      <attribute><code>USE_POOLING</code><attribute>N</attribute></attribute>
+    </attributes>
+  </connection>
+  <connection>
+    <name>nrg_ecom_mysql</name>
+    <server>localhost</server>
+    <type>MYSQL</type>
+    <access>Native</access>
+    <database>nrg_ecom</database>
+    <port>3306</port>
+    <username>root</username>
+    <password></password>
+    <servername/>
+    <data_tablespace/>
+    <index_tablespace/>
+    <attributes>
+      <attribute><code>PORT_NUMBER</code><attribute>3306</attribute></attribute>
+    </attributes>
+  </connection>
+
+  <order>
+    <hop><from>Input 42 Toko store_master.csv</from><to>Lookup Kota Baku</to><enabled>Y</enabled></hop>
+    <hop><from>Input ref_kota.csv</from><to>Lookup Kota Baku</to><enabled>Y</enabled></hop>
+    <hop><from>Lookup Kota Baku</from><to>Set Jenis Kanal TOKO_FISIK</to><enabled>Y</enabled></hop>
+    <hop><from>Set Jenis Kanal TOKO_FISIK</from><to>Select Values TOKO_FISIK</to><enabled>Y</enabled></hop>
+    <hop><from>Select Values TOKO_FISIK</from><to>Append Online Channels</to><enabled>Y</enabled></hop>
+    <hop><from>Input Online Channels (Web &amp; Mpl)</from><to>Append Online Channels</to><enabled>Y</enabled></hop>
+    <hop><from>Append Online Channels</from><to>Insert / Update dim_toko_kanal</to><enabled>Y</enabled></hop>
+  </order>
+  <step>
+    <name>Input 42 Toko store_master.csv</name>
+    <type>CsvInput</type>
+    
+    <copies>1</copies>
+    <partitioning>
+      <method>none</method>
+      <schema_name/>
+    </partitioning>
+
+    <filename>${Internal.Transformation.Filename.Directory}/Data/S2_POS_TOKO/store_master.csv</filename>
+    <filename_field/>
+    <rownum_field/>
+    <include_filename>N</include_filename>
+    <separator>,</separator>
+    <enclosure>&quot;</enclosure>
+    <header>Y</header>
+    <buffer_size>50000</buffer_size>
+    <lazy_conversion>N</lazy_conversion>
+    <add_filename_result>N</add_filename_result>
+    <parallel>N</parallel>
+    <newline_possible>N</newline_possible>
+    <format>mixed</format>
+    <encoding>UTF-8</encoding>
+    <fields>
+      <field><name>store_code</name><type>String</type><trim_type>both</trim_type></field>
+      <field><name>store_name</name><type>String</type><trim_type>both</trim_type></field>
+      <field><name>city</name><type>String</type><trim_type>both</trim_type></field>
+      <field><name>province</name><type>String</type><trim_type>both</trim_type></field>
+      <field><name>format_toko</name><type>String</type><trim_type>both</trim_type></field>
+    </fields>
+    <GUI><xloc>100</xloc><yloc>80</yloc><draw>Y</draw></GUI>
+  </step>
+  <step>
+    <name>Input ref_kota.csv</name>
+    <type>CsvInput</type>
+    
+    <copies>1</copies>
+    <partitioning>
+      <method>none</method>
+      <schema_name/>
+    </partitioning>
+
+    <filename>${Internal.Transformation.Filename.Directory}/Data/ref_kota.csv</filename>
+    <filename_field/>
+    <rownum_field/>
+    <include_filename>N</include_filename>
+    <separator>,</separator>
+    <enclosure>&quot;</enclosure>
+    <header>Y</header>
+    <buffer_size>50000</buffer_size>
+    <lazy_conversion>N</lazy_conversion>
+    <add_filename_result>N</add_filename_result>
+    <parallel>N</parallel>
+    <newline_possible>N</newline_possible>
+    <format>mixed</format>
+    <encoding>UTF-8</encoding>
+    <fields>
+      <field><name>alias</name><type>String</type><trim_type>both</trim_type></field>
+      <field><name>kota_baku</name><type>String</type><trim_type>both</trim_type></field>
+    </fields>
+    <GUI><xloc>100</xloc><yloc>200</yloc><draw>Y</draw></GUI>
+  </step>
+  <step>
+    <name>Lookup Kota Baku</name>
+    <type>StreamLookup</type>
+    
+    <copies>1</copies>
+    <partitioning>
+      <method>none</method>
+      <schema_name/>
+    </partitioning>
+
+    <from>Input ref_kota.csv</from>
+    <input_sorted>N</input_sorted>
+    <preserve_memory>Y</preserve_memory>
+    <sorted_list>N</sorted_list>
+    <integer_pair>N</integer_pair>
+    <lookup>
+      <key><name>city</name><field>alias</field></key>
+      <value><name>kota_baku</name><rename>kota_standar</rename><default/></value>
+    </lookup>
+    <GUI><xloc>260</xloc><yloc>80</yloc><draw>Y</draw></GUI>
+  </step>
+  <step>
+    <name>Set Jenis Kanal TOKO_FISIK</name>
+    <type>ScriptValueMod</type>
+    
+    <copies>1</copies>
+    <partitioning>
+      <method>none</method>
+      <schema_name/>
+    </partitioning>
+
+    <compatible>N</compatible>
+    <optimizationLevel>9</optimizationLevel>
+    <jsScripts>
+      <jsScript>
+        <jsScript_type>0</jsScript_type>
+        <jsScript_name>Script 1</jsScript_name>
+        <jsScript_script>
+var kode_toko_kanal = store_code;
+var nama_toko_kanal = store_name;
+var jenis_kanal = "TOKO_FISIK";
+var kota = kota_standar != null ? kota_standar : city;
+var provinsi = province;
+var format = format_toko;
+        </jsScript_script>
+      </jsScript>
+    </jsScripts>
+    <fields>
+      <field><name>kode_toko_kanal</name><rename>kode_toko_kanal</rename><type>String</type></field>
+      <field><name>nama_toko_kanal</name><rename>nama_toko_kanal</rename><type>String</type></field>
+      <field><name>jenis_kanal</name><rename>jenis_kanal</rename><type>String</type></field>
+      <field><name>kota</name><rename>kota</rename><type>String</type></field>
+      <field><name>provinsi</name><rename>provinsi</rename><type>String</type></field>
+      <field><name>format</name><rename>format_toko</rename><type>String</type></field>
+    </fields>
+    <GUI><xloc>440</xloc><yloc>80</yloc><draw>Y</draw></GUI>
+  </step>
+  <step>
+    <name>Select Values TOKO_FISIK</name>
+    <type>SelectValues</type>
+    
+    <copies>1</copies>
+    <partitioning>
+      <method>none</method>
+      <schema_name/>
+    </partitioning>
+
+    <fields>
+      <field><name>kode_toko_kanal</name></field>
+      <field><name>nama_toko_kanal</name></field>
+      <field><name>jenis_kanal</name></field>
+      <field><name>kota</name></field>
+      <field><name>provinsi</name></field>
+      <field><name>format_toko</name></field>
+      <select_unspecified>N</select_unspecified>
+    </fields>
+    <GUI><xloc>580</xloc><yloc>80</yloc><draw>Y</draw></GUI>
+  </step>
+  <step>
+    <name>Input Online Channels (Web &amp; Mpl)</name>
+    <type>DataGrid</type>
+    
+    <copies>1</copies>
+    <partitioning>
+      <method>none</method>
+      <schema_name/>
+    </partitioning>
+
+    <data>
+      <line><item>WEB</item><item>Website Resmi Nusantara Retail Group</item><item>WEB</item><item>Jakarta Pusat</item><item>DKI Jakarta</item><item>Online E-Commerce</item></line>
+      <line><item>MARKETPLACE_A</item><item>Marketplace Platform A</item><item>MARKETPLACE</item><item>Nasional</item><item>Nasional</item><item>Online Third-Party</item></line>
+      <line><item>MARKETPLACE_B</item><item>Marketplace Platform B</item><item>MARKETPLACE</item><item>Nasional</item><item>Nasional</item><item>Online Third-Party</item></line>
+    </data>
+    <fields>
+      <field><name>kode_toko_kanal</name><type>String</type></field>
+      <field><name>nama_toko_kanal</name><type>String</type></field>
+      <field><name>jenis_kanal</name><type>String</type></field>
+      <field><name>kota</name><type>String</type></field>
+      <field><name>provinsi</name><type>String</type></field>
+      <field><name>format_toko</name><type>String</type></field>
+    </fields>
+    <GUI><xloc>580</xloc><yloc>200</yloc><draw>Y</draw></GUI>
+  </step>
+  <step>
+    <name>Append Online Channels</name>
+    <type>Append</type>
+    
+    <copies>1</copies>
+    <partitioning>
+      <method>none</method>
+      <schema_name/>
+    </partitioning>
+
+    <head_name>Select Values TOKO_FISIK</head_name>
+    <tail_name>Input Online Channels (Web &amp; Mpl)</tail_name>
+    <GUI><xloc>740</xloc><yloc>80</yloc><draw>Y</draw></GUI>
+  </step>
+  <step>
+    <name>Insert / Update dim_toko_kanal</name>
+    <type>InsertUpdate</type>
+    
+    <copies>1</copies>
+    <partitioning>
+      <method>none</method>
+      <schema_name/>
+    </partitioning>
+
+    <connection>nrg_dw_mysql</connection>
+    <commit>100</commit>
+    <lookup>
+      <schema/>
+      <table>dim_toko_kanal</table>
+      <key><name>kode_toko_kanal</name><field>kode_toko_kanal</field><condition>=</condition></key>
+      <value><name>kode_toko_kanal</name><rename>kode_toko_kanal</rename><update>Y</update></value>
+      <value><name>nama_toko_kanal</name><rename>nama_toko_kanal</rename><update>Y</update></value>
+      <value><name>jenis_kanal</name><rename>jenis_kanal</rename><update>Y</update></value>
+      <value><name>kota</name><rename>kota</rename><update>Y</update></value>
+      <value><name>provinsi</name><rename>provinsi</rename><update>Y</update></value>
+      <value><name>format_toko</name><rename>format_toko</rename><update>Y</update></value>
+    </lookup>
+    <GUI><xloc>920</xloc><yloc>80</yloc><draw>Y</draw></GUI>
+  </step>
+</transformation>

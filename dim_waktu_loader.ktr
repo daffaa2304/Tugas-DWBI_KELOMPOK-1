@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<transformation>
+  <info>
+    <name>dim_waktu_loader</name>
+    <description>Memuat Dimensi Waktu 2022-2024 ke nrg_dw</description>
+    <trans_version>1.0</trans_version>
+    <trans_type>Normal</trans_type>
+    <directory>/</directory>
+  </info>
+  
+  <connection>
+    <name>nrg_dw_mysql</name>
+    <server>localhost</server>
+    <type>MYSQL</type>
+    <access>Native</access>
+    <database>nrg_dw</database>
+    <port>3306</port>
+    <username>root</username>
+    <password></password>
+    <servername/>
+    <data_tablespace/>
+    <index_tablespace/>
+    <attributes>
+      <attribute><code>FORCE_IDENTIFIERS_TO_LOWERCASE</code><attribute>N</attribute></attribute>
+      <attribute><code>FORCE_IDENTIFIERS_TO_UPPERCASE</code><attribute>N</attribute></attribute>
+      <attribute><code>IS_CLUSTERED</code><attribute>N</attribute></attribute>
+      <attribute><code>PORT_NUMBER</code><attribute>3306</attribute></attribute>
+      <attribute><code>PRESERVE_RESERVED_WORD_CASE</code><attribute>Y</attribute></attribute>
+      <attribute><code>QUOTE_ALL_FIELDS</code><attribute>N</attribute></attribute>
+      <attribute><code>STREAM_RESULTS</code><attribute>Y</attribute></attribute>
+      <attribute><code>SUPPORTS_BOOLEAN_DATA_TYPE</code><attribute>Y</attribute></attribute>
+      <attribute><code>SUPPORTS_TIMESTAMP_DATA_TYPE</code><attribute>Y</attribute></attribute>
+      <attribute><code>USE_POOLING</code><attribute>N</attribute></attribute>
+    </attributes>
+  </connection>
+  <connection>
+    <name>nrg_ecom_mysql</name>
+    <server>localhost</server>
+    <type>MYSQL</type>
+    <access>Native</access>
+    <database>nrg_ecom</database>
+    <port>3306</port>
+    <username>root</username>
+    <password></password>
+    <servername/>
+    <data_tablespace/>
+    <index_tablespace/>
+    <attributes>
+      <attribute><code>PORT_NUMBER</code><attribute>3306</attribute></attribute>
+    </attributes>
+  </connection>
+
+  <order>
+    <hop><from>Generate Dates 2022-2024</from><to>Calculate Date Attributes</to><enabled>Y</enabled></hop>
+    <hop><from>Calculate Date Attributes</from><to>Insert / Update dim_waktu</to><enabled>Y</enabled></hop>
+  </order>
+  <step>
+    <name>Generate Dates 2022-2024</name>
+    <type>RowGenerator</type>
+    
+    <copies>1</copies>
+    <partitioning>
+      <method>none</method>
+      <schema_name/>
+    </partitioning>
+
+    <fields>
+      <field><name>start_date</name><type>Date</type><format>yyyy-MM-dd</format><nullif>2022-01-01</nullif></field>
+    </fields>
+    <limit>1096</limit>
+    <never_ending>N</never_ending>
+    <GUI><xloc>120</xloc><yloc>120</yloc><draw>Y</draw></GUI>
+  </step>
+  <step>
+    <name>Calculate Date Attributes</name>
+    <type>ScriptValueMod</type>
+    
+    <copies>1</copies>
+    <partitioning>
+      <method>none</method>
+      <schema_name/>
+    </partitioning>
+
+    <compatible>N</compatible>
+    <optimizationLevel>9</optimizationLevel>
+    <jsScripts>
+      <jsScript>
+        <jsScript_type>0</jsScript_type>
+        <jsScript_name>Script 1</jsScript_name>
+        <jsScript_script>
+var row_idx;
+if (typeof row_idx === 'undefined') {
+    row_idx = 0;
+} else {
+    row_idx++;
+}
+var cal = java.util.Calendar.getInstance();
+cal.setTime(start_date);
+cal.add(java.util.Calendar.DATE, row_idx);
+var curr_date = cal.getTime();
+
+var sdf_sk = new java.text.SimpleDateFormat("yyyyMMdd");
+var sk_waktu = java.lang.Integer.parseInt(sdf_sk.format(curr_date));
+
+var thn = cal.get(java.util.Calendar.YEAR);
+var bln = cal.get(java.util.Calendar.MONTH) + 1;
+var hari = cal.get(java.util.Calendar.DAY_OF_MONTH);
+var kuartal = Math.floor((bln - 1) / 3) + 1;
+var kuartal_nama = "Q" + kuartal + " " + thn;
+
+var bulan_names = ["", "Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+var nama_bulan = bulan_names[bln];
+
+var day_names = ["", "Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+var nama_hari = day_names[cal.get(java.util.Calendar.DAY_OF_WEEK)];
+
+var dow = cal.get(java.util.Calendar.DAY_OF_WEEK);
+var is_weekend = (dow == java.util.Calendar.SATURDAY || dow == java.util.Calendar.SUNDAY) ? 1 : 0;
+        </jsScript_script>
+      </jsScript>
+    </jsScripts>
+    <fields>
+      <field><name>sk_waktu</name><rename>sk_waktu</rename><type>Integer</type></field>
+      <field><name>curr_date</name><rename>tanggal</rename><type>Date</type></field>
+      <field><name>thn</name><rename>tahun</rename><type>Integer</type></field>
+      <field><name>kuartal</name><rename>kuartal</rename><type>Integer</type></field>
+      <field><name>kuartal_nama</name><rename>kuartal_nama</rename><type>String</type></field>
+      <field><name>bln</name><rename>bulan</rename><type>Integer</type></field>
+      <field><name>nama_bulan</name><rename>nama_bulan</rename><type>String</type></field>
+      <field><name>hari</name><rename>hari</rename><type>Integer</type></field>
+      <field><name>nama_hari</name><rename>nama_hari</rename><type>String</type></field>
+      <field><name>is_weekend</name><rename>is_weekend</rename><type>Integer</type></field>
+    </fields>
+    <GUI><xloc>320</xloc><yloc>120</yloc><draw>Y</draw></GUI>
+  </step>
+  <step>
+    <name>Insert / Update dim_waktu</name>
+    <type>InsertUpdate</type>
+    
+    <copies>1</copies>
+    <partitioning>
+      <method>none</method>
+      <schema_name/>
+    </partitioning>
+
+    <connection>nrg_dw_mysql</connection>
+    <commit>1000</commit>
+    <lookup>
+      <schema/>
+      <table>dim_waktu</table>
+      <key><name>sk_waktu</name><field>sk_waktu</field><condition>=</condition><name2/></key>
+      <value><name>sk_waktu</name><rename>sk_waktu</rename><update>Y</update></value>
+      <value><name>tanggal</name><rename>tanggal</rename><update>Y</update></value>
+      <value><name>tahun</name><rename>tahun</rename><update>Y</update></value>
+      <value><name>kuartal</name><rename>kuartal</rename><update>Y</update></value>
+      <value><name>kuartal_nama</name><rename>kuartal_nama</rename><update>Y</update></value>
+      <value><name>bulan</name><rename>bulan</rename><update>Y</update></value>
+      <value><name>nama_bulan</name><rename>nama_bulan</rename><update>Y</update></value>
+      <value><name>hari</name><rename>hari</rename><update>Y</update></value>
+      <value><name>nama_hari</name><rename>nama_hari</rename><update>Y</update></value>
+      <value><name>is_weekend</name><rename>is_weekend</rename><update>Y</update></value>
+    </lookup>
+    <GUI><xloc>540</xloc><yloc>120</yloc><draw>Y</draw></GUI>
+  </step>
+</transformation>

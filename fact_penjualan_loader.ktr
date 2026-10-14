@@ -1,0 +1,238 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<transformation>
+  <info>
+    <name>fact_penjualan_loader</name>
+    <description>Memuat Tabel Fakta Penjualan Terintegrasi (S1, S2, S3) ke nrg_dw</description>
+    <trans_version>1.0</trans_version>
+    <trans_type>Normal</trans_type>
+    <directory>/</directory>
+  </info>
+  
+  <connection>
+    <name>nrg_dw_mysql</name>
+    <server>localhost</server>
+    <type>MYSQL</type>
+    <access>Native</access>
+    <database>nrg_dw</database>
+    <port>3306</port>
+    <username>root</username>
+    <password></password>
+    <servername/>
+    <data_tablespace/>
+    <index_tablespace/>
+    <attributes>
+      <attribute><code>FORCE_IDENTIFIERS_TO_LOWERCASE</code><attribute>N</attribute></attribute>
+      <attribute><code>FORCE_IDENTIFIERS_TO_UPPERCASE</code><attribute>N</attribute></attribute>
+      <attribute><code>IS_CLUSTERED</code><attribute>N</attribute></attribute>
+      <attribute><code>PORT_NUMBER</code><attribute>3306</attribute></attribute>
+      <attribute><code>PRESERVE_RESERVED_WORD_CASE</code><attribute>Y</attribute></attribute>
+      <attribute><code>QUOTE_ALL_FIELDS</code><attribute>N</attribute></attribute>
+      <attribute><code>STREAM_RESULTS</code><attribute>Y</attribute></attribute>
+      <attribute><code>SUPPORTS_BOOLEAN_DATA_TYPE</code><attribute>Y</attribute></attribute>
+      <attribute><code>SUPPORTS_TIMESTAMP_DATA_TYPE</code><attribute>Y</attribute></attribute>
+      <attribute><code>USE_POOLING</code><attribute>N</attribute></attribute>
+    </attributes>
+  </connection>
+  <connection>
+    <name>nrg_ecom_mysql</name>
+    <server>localhost</server>
+    <type>MYSQL</type>
+    <access>Native</access>
+    <database>nrg_ecom</database>
+    <port>3306</port>
+    <username>root</username>
+    <password></password>
+    <servername/>
+    <data_tablespace/>
+    <index_tablespace/>
+    <attributes>
+      <attribute><code>PORT_NUMBER</code><attribute>3306</attribute></attribute>
+    </attributes>
+  </connection>
+
+  <order>
+    <hop><from>Input S1 ECOM (MySQL)</from><to>Transform S1 Non-PPN</to><enabled>Y</enabled></hop>
+    <hop><from>Transform S1 Non-PPN</from><to>Lookup S4 COGS S1</to><enabled>Y</enabled></hop>
+    <hop><from>Lookup S4 COGS S1</from><to>Lookup Dimensi S1</to><enabled>Y</enabled></hop>
+    <hop><from>Lookup Dimensi S1</from><to>Insert Fact Penjualan</to><enabled>Y</enabled></hop>
+  </order>
+  <step>
+    <name>Input S1 ECOM (MySQL)</name>
+    <type>TableInput</type>
+    
+    <copies>1</copies>
+    <partitioning>
+      <method>none</method>
+      <schema_name/>
+    </partitioning>
+
+    <connection>nrg_ecom_mysql</connection>
+    <sql>
+      SELECT 
+        oi.order_id, oi.line_no, oi.sku, oi.qty, oi.unit_price, oi.disc_amount,
+        o.order_ts, o.customer_id, v.promo_code
+      FROM order_items oi
+      JOIN orders o ON oi.order_id = o.order_id
+      LEFT JOIN vouchers v ON o.voucher_id = v.voucher_id
+    </sql>
+    <GUI><xloc>100</xloc><yloc>100</yloc><draw>Y</draw></GUI>
+  </step>
+  <step>
+    <name>Transform S1 Non-PPN</name>
+    <type>ScriptValueMod</type>
+    
+    <copies>1</copies>
+    <partitioning>
+      <method>none</method>
+      <schema_name/>
+    </partitioning>
+
+    <compatible>N</compatible>
+    <optimizationLevel>9</optimizationLevel>
+    <jsScripts>
+      <jsScript>
+        <jsScript_type>0</jsScript_type>
+        <jsScript_name>Script 1</jsScript_name>
+        <jsScript_script>
+var sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+var dt = sdf.parse(order_ts);
+var sdf_sk = new java.text.SimpleDateFormat("yyyyMMdd");
+var sk_waktu = java.lang.Integer.parseInt(sdf_sk.format(dt));
+
+var u_price_excl = Math.round((unit_price / 1.11) * 100) / 100;
+var d_excl = Math.round((disc_amount / 1.11) * 100) / 100;
+var gross_excl = Math.round((qty * u_price_excl) * 100) / 100;
+var net_excl = Math.round((gross_excl - d_excl) * 100) / 100;
+
+var mat_no = "P-1061";
+if (sku != "SKU-NEWARR-001") {
+    var m = sku.match(/SKU-(\d+)-/);
+    if (m) {
+        mat_no = "P-" + m[1];
+    }
+}
+var kanal = "WEB";
+        </jsScript_script>
+      </jsScript>
+    </jsScripts>
+    <fields>
+      <field><name>sk_waktu</name><rename>sk_waktu</rename><type>Integer</type></field>
+      <field><name>u_price_excl</name><rename>harga_satuan_excl</rename><type>Number</type></field>
+      <field><name>gross_excl</name><rename>nilai_kotor_excl</rename><type>Number</type></field>
+      <field><name>d_excl</name><rename>nilai_diskon_excl</rename><type>Number</type></field>
+      <field><name>net_excl</name><rename>nilai_bersih_excl</rename><type>Number</type></field>
+      <field><name>mat_no</name><rename>material_no</rename><type>String</type></field>
+      <field><name>kanal</name><rename>kanal</rename><type>String</type></field>
+    </fields>
+    <GUI><xloc>280</xloc><yloc>100</yloc><draw>Y</draw></GUI>
+  </step>
+  <step>
+    <name>Lookup S4 COGS S1</name>
+    <type>DBLookup</type>
+    
+    <copies>1</copies>
+    <partitioning>
+      <method>none</method>
+      <schema_name/>
+    </partitioning>
+
+    <connection>nrg_dw_mysql</connection>
+    <cache>Y</cache>
+    <cache_size>1000</cache_size>
+    <lookup>
+      <schema/>
+      <table>dim_produk</table>
+      <orderby/>
+      <fail_on_multiple>N</fail_on_multiple>
+      <eat_row_on_failure>N</eat_row_on_failure>
+      <key><name>material_no</name><field>material_no</field><condition>=</condition></key>
+      <value><name>sk_produk</name><rename>sk_produk</rename><default>1</default><type>Integer</type></value>
+      <value><name>harga_pokok_terkini</name><rename>harga_pokok_satuan</rename><default>0</default><type>Number</type></value>
+    </lookup>
+    <GUI><xloc>460</xloc><yloc>100</yloc><draw>Y</draw></GUI>
+  </step>
+  <step>
+    <name>Lookup Dimensi S1</name>
+    <type>ScriptValueMod</type>
+    
+    <copies>1</copies>
+    <partitioning>
+      <method>none</method>
+      <schema_name/>
+    </partitioning>
+
+    <compatible>N</compatible>
+    <optimizationLevel>9</optimizationLevel>
+    <jsScripts>
+      <jsScript>
+        <jsScript_type>0</jsScript_type>
+        <jsScript_name>Script 1</jsScript_name>
+        <jsScript_script>
+var total_cogs = Math.round((qty * harga_pokok_satuan) * 100) / 100;
+var fee_komisi = 0.00;
+var margin_kotor = Math.round((nilai_bersih_excl - total_cogs - fee_komisi) * 100) / 100;
+var sk_toko_kanal = 43; // sk untuk WEB
+var sk_promosi = 1;
+var sk_pelanggan = customer_id;
+        </jsScript_script>
+      </jsScript>
+    </jsScripts>
+    <fields>
+      <field><name>total_cogs</name><rename>total_harga_pokok</rename><type>Number</type></field>
+      <field><name>fee_komisi</name><rename>fee_komisi</rename><type>Number</type></field>
+      <field><name>margin_kotor</name><rename>margin_kotor</rename><type>Number</type></field>
+      <field><name>sk_toko_kanal</name><rename>sk_toko_kanal</rename><type>Integer</type></field>
+      <field><name>sk_promosi</name><rename>sk_promosi</rename><type>Integer</type></field>
+      <field><name>sk_pelanggan</name><rename>sk_pelanggan</rename><type>Integer</type></field>
+    </fields>
+    <GUI><xloc>640</xloc><yloc>100</yloc><draw>Y</draw></GUI>
+  </step>
+  <step>
+    <name>Insert Fact Penjualan</name>
+    <type>TableOutput</type>
+    
+    <copies>1</copies>
+    <partitioning>
+      <method>none</method>
+      <schema_name/>
+    </partitioning>
+
+    <connection>nrg_dw_mysql</connection>
+    <schema/>
+    <table>fact_penjualan</table>
+    <commit>1000</commit>
+    <truncate>Y</truncate>
+    <ignore_errors>N</ignore_errors>
+    <use_batch>Y</use_batch>
+    <specify_fields>Y</specify_fields>
+    <partitioning_enabled>N</partitioning_enabled>
+    <partitioning_field/>
+    <partitioning_daily>N</partitioning_daily>
+    <partitioning_monthly>Y</partitioning_monthly>
+    <tablename_in_field>N</tablename_in_field>
+    <tablename_field/>
+    <tablename_in_table>Y</tablename_in_table>
+    <return_keys>N</return_keys>
+    <return_field/>
+    <fields>
+      <field><column_name>sk_waktu</column_name><stream_name>sk_waktu</stream_name></field>
+      <field><column_name>sk_produk</column_name><stream_name>sk_produk</stream_name></field>
+      <field><column_name>sk_toko_kanal</column_name><stream_name>sk_toko_kanal</stream_name></field>
+      <field><column_name>sk_pelanggan</column_name><stream_name>sk_pelanggan</stream_name></field>
+      <field><column_name>sk_promosi</column_name><stream_name>sk_promosi</stream_name></field>
+      <field><column_name>no_transaksi</column_name><stream_name>order_id</stream_name></field>
+      <field><column_name>line_no</column_name><stream_name>line_no</stream_name></field>
+      <field><column_name>kanal</column_name><stream_name>kanal</stream_name></field>
+      <field><column_name>qty</column_name><stream_name>qty</stream_name></field>
+      <field><column_name>harga_satuan_excl</column_name><stream_name>harga_satuan_excl</stream_name></field>
+      <field><column_name>nilai_kotor_excl</column_name><stream_name>nilai_kotor_excl</stream_name></field>
+      <field><column_name>nilai_diskon_excl</column_name><stream_name>nilai_diskon_excl</stream_name></field>
+      <field><column_name>nilai_bersih_excl</column_name><stream_name>nilai_bersih_excl</stream_name></field>
+      <field><column_name>harga_pokok_satuan</column_name><stream_name>harga_pokok_satuan</stream_name></field>
+      <field><column_name>total_harga_pokok</column_name><stream_name>total_harga_pokok</stream_name></field>
+      <field><column_name>fee_komisi</column_name><stream_name>fee_komisi</stream_name></field>
+      <field><column_name>margin_kotor</column_name><stream_name>margin_kotor</stream_name></field>
+    </fields>
+    <GUI><xloc>860</xloc><yloc>100</yloc><draw>Y</draw></GUI>
+  </step>
+</transformation>

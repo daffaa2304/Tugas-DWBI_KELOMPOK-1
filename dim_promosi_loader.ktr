@@ -1,0 +1,244 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<transformation>
+  <info>
+    <name>dim_promosi_loader</name>
+    <description>Memuat Dimensi Promosi dengan Filter Error 'sepuluh'</description>
+    <trans_version>1.0</trans_version>
+    <trans_type>Normal</trans_type>
+    <directory>/</directory>
+  </info>
+  
+  <connection>
+    <name>nrg_dw_mysql</name>
+    <server>localhost</server>
+    <type>MYSQL</type>
+    <access>Native</access>
+    <database>nrg_dw</database>
+    <port>3306</port>
+    <username>root</username>
+    <password></password>
+    <servername/>
+    <data_tablespace/>
+    <index_tablespace/>
+    <attributes>
+      <attribute><code>FORCE_IDENTIFIERS_TO_LOWERCASE</code><attribute>N</attribute></attribute>
+      <attribute><code>FORCE_IDENTIFIERS_TO_UPPERCASE</code><attribute>N</attribute></attribute>
+      <attribute><code>IS_CLUSTERED</code><attribute>N</attribute></attribute>
+      <attribute><code>PORT_NUMBER</code><attribute>3306</attribute></attribute>
+      <attribute><code>PRESERVE_RESERVED_WORD_CASE</code><attribute>Y</attribute></attribute>
+      <attribute><code>QUOTE_ALL_FIELDS</code><attribute>N</attribute></attribute>
+      <attribute><code>STREAM_RESULTS</code><attribute>Y</attribute></attribute>
+      <attribute><code>SUPPORTS_BOOLEAN_DATA_TYPE</code><attribute>Y</attribute></attribute>
+      <attribute><code>SUPPORTS_TIMESTAMP_DATA_TYPE</code><attribute>Y</attribute></attribute>
+      <attribute><code>USE_POOLING</code><attribute>N</attribute></attribute>
+    </attributes>
+  </connection>
+  <connection>
+    <name>nrg_ecom_mysql</name>
+    <server>localhost</server>
+    <type>MYSQL</type>
+    <access>Native</access>
+    <database>nrg_ecom</database>
+    <port>3306</port>
+    <username>root</username>
+    <password></password>
+    <servername/>
+    <data_tablespace/>
+    <index_tablespace/>
+    <attributes>
+      <attribute><code>PORT_NUMBER</code><attribute>3306</attribute></attribute>
+    </attributes>
+  </connection>
+
+  <order>
+    <hop><from>Input S5 kampanye_marketing.csv</from><to>Filter Baris Kosong &amp; Trim</to><enabled>Y</enabled></hop>
+    <hop><from>Filter Baris Kosong &amp; Trim</from><to>Cek Nilai Diskon Numerik</to><enabled>Y</enabled></hop>
+    <hop><from>Cek Nilai Diskon Numerik</from><to>Filter Baris Valid</to><enabled>Y</enabled></hop>
+    <hop><from>Filter Baris Valid</from><to>Output Error 'sepuluh'</to><enabled>Y</enabled></hop>
+    <hop><from>Filter Baris Valid</from><to>Insert / Update dim_promosi</to><enabled>Y</enabled></hop>
+  </order>
+  <step>
+    <name>Input S5 kampanye_marketing.csv</name>
+    <type>CsvInput</type>
+    
+    <copies>1</copies>
+    <partitioning>
+      <method>none</method>
+      <schema_name/>
+    </partitioning>
+
+    <filename>${Internal.Transformation.Filename.Directory}/Data/S5_MKT_SHEET/kampanye_marketing.csv</filename>
+    <filename_field/>
+    <rownum_field/>
+    <include_filename>N</include_filename>
+    <separator>,</separator>
+    <enclosure>&quot;</enclosure>
+    <header>Y</header>
+    <buffer_size>50000</buffer_size>
+    <lazy_conversion>N</lazy_conversion>
+    <add_filename_result>N</add_filename_result>
+    <parallel>N</parallel>
+    <newline_possible>N</newline_possible>
+    <format>mixed</format>
+    <encoding>UTF-8</encoding>
+    <fields>
+      <field><name>kode_promo</name><type>String</type><trim_type>both</trim_type></field>
+      <field><name>nama_kampanye</name><type>String</type><trim_type>both</trim_type></field>
+      <field><name>jenis_promo</name><type>String</type><trim_type>both</trim_type></field>
+      <field><name>kanal</name><type>String</type><trim_type>both</trim_type></field>
+      <field><name>tgl_mulai</name><type>String</type><trim_type>both</trim_type></field>
+      <field><name>tgl_selesai</name><type>String</type><trim_type>both</trim_type></field>
+      <field><name>target_diskon_persen</name><type>String</type><trim_type>both</trim_type></field>
+      <field><name>pic</name><type>String</type><trim_type>both</trim_type></field>
+    </fields>
+    <GUI><xloc>100</xloc><yloc>120</yloc><draw>Y</draw></GUI>
+  </step>
+  <step>
+    <name>Filter Baris Kosong &amp; Trim</name>
+    <type>FilterRows</type>
+    
+    <copies>1</copies>
+    <partitioning>
+      <method>none</method>
+      <schema_name/>
+    </partitioning>
+
+    <send_true_to>Cek Nilai Diskon Numerik</send_true_to>
+    <send_false_to/>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <leftvalue>kode_promo</leftvalue>
+        <function>IS NOT NULL</function>
+      </condition>
+    </compare>
+    <GUI><xloc>280</xloc><yloc>120</yloc><draw>Y</draw></GUI>
+  </step>
+  <step>
+    <name>Cek Nilai Diskon Numerik</name>
+    <type>ScriptValueMod</type>
+    
+    <copies>1</copies>
+    <partitioning>
+      <method>none</method>
+      <schema_name/>
+    </partitioning>
+
+    <compatible>N</compatible>
+    <optimizationLevel>9</optimizationLevel>
+    <jsScripts>
+      <jsScript>
+        <jsScript_type>0</jsScript_type>
+        <jsScript_name>Script 1</jsScript_name>
+        <jsScript_script>
+var k_clean = kode_promo.trim().toUpperCase();
+var is_num = !isNaN(parseFloat(target_diskon_persen));
+var diskon_val = is_num ? parseFloat(target_diskon_persen) : 0.0;
+var is_valid_flag = is_num ? "Y" : "N";
+var err_reason = is_num ? "" : "Nilai target_diskon_persen bukan numerik ('" + target_diskon_persen + "')";
+        </jsScript_script>
+      </jsScript>
+    </jsScripts>
+    <fields>
+      <field><name>k_clean</name><rename>kode_promo_clean</rename><type>String</type></field>
+      <field><name>is_valid_flag</name><rename>is_valid_flag</rename><type>String</type></field>
+      <field><name>diskon_val</name><rename>diskon_persen</rename><type>Number</type></field>
+      <field><name>err_reason</name><rename>alasan_error</rename><type>String</type></field>
+    </fields>
+    <GUI><xloc>460</xloc><yloc>120</yloc><draw>Y</draw></GUI>
+  </step>
+  <step>
+    <name>Filter Baris Valid</name>
+    <type>FilterRows</type>
+    
+    <copies>1</copies>
+    <partitioning>
+      <method>none</method>
+      <schema_name/>
+    </partitioning>
+
+    <send_true_to>Insert / Update dim_promosi</send_true_to>
+    <send_false_to>Output Error 'sepuluh'</send_false_to>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <leftvalue>is_valid_flag</leftvalue>
+        <function>=</function>
+        <rightvalue/>
+        <value>
+          <name>constant</name>
+          <type>String</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+          <mask/>
+        </value>
+      </condition>
+    </compare>
+    <GUI><xloc>620</xloc><yloc>120</yloc><draw>Y</draw></GUI>
+  </step>
+  <step>
+    <name>Output Error 'sepuluh'</name>
+    <type>TableOutput</type>
+    
+    <copies>1</copies>
+    <partitioning>
+      <method>none</method>
+      <schema_name/>
+    </partitioning>
+
+    <connection>nrg_dw_mysql</connection>
+    <schema/>
+    <table>error_kampanye_marketing</table>
+    <commit>100</commit>
+    <truncate>N</truncate>
+    <ignore_errors>N</ignore_errors>
+    <use_batch>Y</use_batch>
+    <specify_fields>Y</specify_fields>
+    <partitioning_enabled>N</partitioning_enabled>
+    <partitioning_field/>
+    <partitioning_daily>N</partitioning_daily>
+    <partitioning_monthly>Y</partitioning_monthly>
+    <tablename_in_field>N</tablename_in_field>
+    <tablename_field/>
+    <tablename_in_table>Y</tablename_in_table>
+    <return_keys>N</return_keys>
+    <return_field/>
+    <fields>
+      <field><column_name>kode_promo</column_name><stream_name>kode_promo</stream_name></field>
+      <field><column_name>nama_kampanye</column_name><stream_name>nama_kampanye</stream_name></field>
+      <field><column_name>jenis_promo</column_name><stream_name>jenis_promo</stream_name></field>
+      <field><column_name>kanal</column_name><stream_name>kanal</stream_name></field>
+      <field><column_name>target_diskon_persen</column_name><stream_name>target_diskon_persen</stream_name></field>
+      <field><column_name>pic</column_name><stream_name>pic</stream_name></field>
+      <field><column_name>alasan_error</column_name><stream_name>alasan_error</stream_name></field>
+    </fields>
+    <GUI><xloc>620</xloc><yloc>260</yloc><draw>Y</draw></GUI>
+  </step>
+  <step>
+    <name>Insert / Update dim_promosi</name>
+    <type>InsertUpdate</type>
+    
+    <copies>1</copies>
+    <partitioning>
+      <method>none</method>
+      <schema_name/>
+    </partitioning>
+
+    <connection>nrg_dw_mysql</connection>
+    <commit>100</commit>
+    <lookup>
+      <schema/>
+      <table>dim_promosi</table>
+      <key><name>kode_promo_clean</name><field>kode_promo</field><condition>=</condition></key>
+      <value><name>kode_promo</name><rename>kode_promo_clean</rename><update>Y</update></value>
+      <value><name>nama_kampanye</name><rename>nama_kampanye</rename><update>Y</update></value>
+      <value><name>jenis_promo</name><rename>jenis_promo</rename><update>Y</update></value>
+      <value><name>kanal_target</name><rename>kanal</rename><update>Y</update></value>
+      <value><name>target_diskon_persen</name><rename>diskon_persen</rename><update>Y</update></value>
+      <value><name>pic</name><rename>pic</rename><update>Y</update></value>
+    </lookup>
+    <GUI><xloc>820</xloc><yloc>120</yloc><draw>Y</draw></GUI>
+  </step>
+</transformation>

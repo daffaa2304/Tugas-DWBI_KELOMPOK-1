@@ -1,0 +1,314 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<transformation>
+  <info>
+    <name>fact_s3_mpl_loader</name>
+    <description>Memuat Transaksi Marketplace Pihak Ketiga (S3) ke fact_penjualan</description>
+    <trans_version>1.0</trans_version>
+    <trans_type>Normal</trans_type>
+    <directory>/</directory>
+  </info>
+  <connection>
+    <name>nrg_dw_mysql</name>
+    <server>localhost</server>
+    <type>MYSQL</type>
+    <access>Native</access>
+    <database>nrg_dw</database>
+    <port>3306</port>
+    <username>root</username>
+    <password></password>
+    <attributes>
+      <attribute><code>FORCE_IDENTIFIERS_TO_LOWERCASE</code><attribute>N</attribute></attribute>
+      <attribute><code>FORCE_IDENTIFIERS_TO_UPPERCASE</code><attribute>N</attribute></attribute>
+      <attribute><code>IS_CLUSTERED</code><attribute>N</attribute></attribute>
+      <attribute><code>PORT_NUMBER</code><attribute>3306</attribute></attribute>
+      <attribute><code>PRESERVE_RESERVED_WORD_CASE</code><attribute>Y</attribute></attribute>
+      <attribute><code>QUOTE_ALL_FIELDS</code><attribute>N</attribute></attribute>
+      <attribute><code>STREAM_RESULTS</code><attribute>Y</attribute></attribute>
+      <attribute><code>SUPPORTS_BOOLEAN_DATA_TYPE</code><attribute>Y</attribute></attribute>
+      <attribute><code>SUPPORTS_TIMESTAMP_DATA_TYPE</code><attribute>Y</attribute></attribute>
+      <attribute><code>USE_POOLING</code><attribute>N</attribute></attribute>
+    </attributes>
+  </connection>
+  <order>
+    <hop><from>Json Input S3 Records</from><to>Json Input S3 Items</to><enabled>Y</enabled></hop>
+    <hop><from>Json Input S3 Items</from><to>Sort by Invoice and SKU</to><enabled>Y</enabled></hop>
+    <hop><from>Sort by Invoice and SKU</from><to>Deduplikasi S3</to><enabled>Y</enabled></hop>
+    <hop><from>Deduplikasi S3</from><to>Transform S3 Metrics</to><enabled>Y</enabled></hop>
+    <hop><from>Transform S3 Metrics</from><to>Lookup S4 COGS S3</to><enabled>Y</enabled></hop>
+    <hop><from>Lookup S4 COGS S3</from><to>Calculate Margin S3</to><enabled>Y</enabled></hop>
+    <hop><from>Calculate Margin S3</from><to>Insert Fact Penjualan S3</to><enabled>Y</enabled></hop>
+  </order>
+
+  <step>
+    <name>Json Input S3 Records</name>
+    <type>JsonInput</type>
+    <copies>1</copies>
+    <include>N</include>
+    <readurl>N</readurl>
+    <removeSourceField>N</removeSourceField>
+    <IsIgnoreEmptyFile>N</IsIgnoreEmptyFile>
+    <doNotFailIfNoFile>Y</doNotFailIfNoFile>
+    <ignoreMissingPath>N</ignoreMissingPath>
+    <file>
+      <name>${Internal.Transformation.Filename.Directory}/Data/S3_MPL_API</name>
+      <filemask>mpl_pull_page_.*\.json</filemask>
+      <file_required>N</file_required>
+      <include_subfolders>N</include_subfolders>
+    </file>
+    <fields>
+      <field>
+        <name>invoice</name>
+        <path>$.records[*].invoice</path>
+        <type>String</type>
+      </field>
+      <field>
+        <name>paid_at</name>
+        <path>$.records[*].paid_at</path>
+        <type>String</type>
+      </field>
+      <field>
+        <name>channel</name>
+        <path>$.records[*].channel</path>
+        <type>String</type>
+      </field>
+      <field>
+        <name>diambil_pada</name>
+        <path>$.records[*].diambil_pada</path>
+        <type>String</type>
+      </field>
+      <field>
+        <name>commission</name>
+        <path>$.records[*].fees.commission</path>
+        <type>Number</type>
+      </field>
+      <field>
+        <name>service</name>
+        <path>$.records[*].fees.service</path>
+        <type>Number</type>
+      </field>
+      <field>
+        <name>items_json</name>
+        <path>$.records[*].items</path>
+        <type>String</type>
+      </field>
+    </fields>
+    <limit>0</limit>
+    <IsInFields>N</IsInFields>
+    <IsAFile>N</IsAFile>
+    <GUI><xloc>100</xloc><yloc>100</yloc><draw>Y</draw></GUI>
+  </step>
+
+  <step>
+    <name>Json Input S3 Items</name>
+    <type>JsonInput</type>
+    <copies>1</copies>
+    <include>N</include>
+    <readurl>N</readurl>
+    <removeSourceField>N</removeSourceField>
+    <IsIgnoreEmptyFile>N</IsIgnoreEmptyFile>
+    <doNotFailIfNoFile>Y</doNotFailIfNoFile>
+    <ignoreMissingPath>N</ignoreMissingPath>
+    <IsInFields>Y</IsInFields>
+    <IsAFile>N</IsAFile>
+    <valueField>items_json</valueField>
+    <fields>
+      <field>
+        <name>seller_sku</name>
+        <path>$.[*].seller_sku</path>
+        <type>String</type>
+      </field>
+      <field>
+        <name>qty</name>
+        <path>$.[*].qty</path>
+        <type>Integer</type>
+      </field>
+      <field>
+        <name>price</name>
+        <path>$.[*].price</path>
+        <type>Number</type>
+      </field>
+      <field>
+        <name>voucher</name>
+        <path>$.[*].voucher</path>
+        <type>Number</type>
+      </field>
+    </fields>
+    <limit>0</limit>
+    <GUI><xloc>260</xloc><yloc>100</yloc><draw>Y</draw></GUI>
+  </step>
+
+  <step>
+    <name>Sort by Invoice and SKU</name>
+    <type>SortRows</type>
+    <copies>1</copies>
+    <directory>%%java.io.tmpdir%%</directory>
+    <prefix>out</prefix>
+    <sort_size>1000000</sort_size>
+    <free_memory/>
+    <compress>N</compress>
+    <compress_variables/>
+    <unique_rows>N</unique_rows>
+    <fields>
+      <field><name>invoice</name><ascending>Y</ascending><case_sensitive>N</case_sensitive><collator_enabled>N</collator_enabled><collator_strength>0</collator_strength><presorted>N</presorted></field>
+      <field><name>seller_sku</name><ascending>Y</ascending><case_sensitive>N</case_sensitive><collator_enabled>N</collator_enabled><collator_strength>0</collator_strength><presorted>N</presorted></field>
+      <field><name>diambil_pada</name><ascending>N</ascending><case_sensitive>N</case_sensitive><collator_enabled>N</collator_enabled><collator_strength>0</collator_strength><presorted>N</presorted></field>
+    </fields>
+    <GUI><xloc>400</xloc><yloc>100</yloc><draw>Y</draw></GUI>
+  </step>
+
+  <step>
+    <name>Deduplikasi S3</name>
+    <type>Unique</type>
+    <copies>1</copies>
+    <count_rows>N</count_rows>
+    <count_field/>
+    <reject_duplicate_row>N</reject_duplicate_row>
+    <error_description/>
+    <fields>
+      <field><name>invoice</name><case_insensitive>N</case_insensitive></field>
+      <field><name>seller_sku</name><case_insensitive>N</case_insensitive></field>
+    </fields>
+    <GUI><xloc>520</xloc><yloc>100</yloc><draw>Y</draw></GUI>
+  </step>
+
+  <step>
+    <name>Transform S3 Metrics</name>
+    <type>ScriptValueMod</type>
+    <copies>1</copies>
+    <compatible>N</compatible>
+    <optimizationLevel>9</optimizationLevel>
+    <jsScripts>
+      <jsScript>
+        <jsScript_type>0</jsScript_type>
+        <jsScript_name>Script 1</jsScript_name>
+        <jsScript_script><![CDATA[
+// Konversi Tanggal UTC ke WIB (UTC+7)
+var sdf_utc = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
+sdf_utc.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+var d_utc = sdf_utc.parse(paid_at);
+
+var sdf_wib = new java.text.SimpleDateFormat("yyyyMMdd");
+sdf_wib.setTimeZone(java.util.TimeZone.getTimeZone("Asia/Jakarta"));
+var sk_waktu = java.lang.Integer.parseInt(sdf_wib.format(d_utc));
+
+// Konversi Harga Non-PPN (dibagi 1.11)
+var u_price_excl = Math.round((price / 1.11) * 100) / 100;
+var d_excl = voucher ? Math.round((voucher / 1.11) * 100) / 100 : 0.00;
+var gross_excl = Math.round((qty * u_price_excl) * 100) / 100;
+var net_excl = Math.round((gross_excl - d_excl) * 100) / 100;
+
+// Mapping SKU ke material_no (P-XXXX)
+var mat_no = "P-1001";
+var m = seller_sku.match(/(\d{4})/);
+if (m) {
+    mat_no = "P-" + m[1];
+}
+
+// Kanal dan Toko
+var kanal = "MARKETPLACE";
+var sk_toko_kanal = 45; // Default MARKETPLACE_B
+if (channel.toLowerCase().indexOf("marketplace_a") >= 0) {
+    sk_toko_kanal = 44; // MARKETPLACE_A
+}
+
+// Fee komisi (alokasi flat / single item baseline)
+var c_fee = commission ? commission : 0.0;
+var s_fee = service ? service : 0.0;
+var fee_komisi = Math.round((c_fee + s_fee) * 100) / 100;
+var sk_promosi = 1; // NO_PROMO
+var sk_pelanggan = 2345; // CUST-ANONYMOUS
+var line_no = 1;
+]]></jsScript_script>
+      </jsScript>
+    </jsScripts>
+    <fields>
+      <field><name>sk_waktu</name><rename>sk_waktu</rename><type>Integer</type></field>
+      <field><name>u_price_excl</name><rename>harga_satuan_excl</rename><type>Number</type></field>
+      <field><name>gross_excl</name><rename>nilai_kotor_excl</rename><type>Number</type></field>
+      <field><name>d_excl</name><rename>nilai_diskon_excl</rename><type>Number</type></field>
+      <field><name>net_excl</name><rename>nilai_bersih_excl</rename><type>Number</type></field>
+      <field><name>mat_no</name><rename>material_no</rename><type>String</type></field>
+      <field><name>kanal</name><rename>kanal</rename><type>String</type></field>
+      <field><name>sk_toko_kanal</name><rename>sk_toko_kanal</rename><type>Integer</type></field>
+      <field><name>fee_komisi</name><rename>fee_komisi</rename><type>Number</type></field>
+      <field><name>sk_promosi</name><rename>sk_promosi</rename><type>Integer</type></field>
+      <field><name>sk_pelanggan</name><rename>sk_pelanggan</rename><type>Integer</type></field>
+      <field><name>line_no</name><rename>line_no</rename><type>Integer</type></field>
+    </fields>
+    <GUI><xloc>660</xloc><yloc>100</yloc><draw>Y</draw></GUI>
+  </step>
+
+  <step>
+    <name>Lookup S4 COGS S3</name>
+    <type>DBLookup</type>
+    <copies>1</copies>
+    <connection>nrg_dw_mysql</connection>
+    <cache>Y</cache>
+    <cache_size>1000</cache_size>
+    <lookup>
+      <schema/>
+      <table>dim_produk</table>
+      <key><name>material_no</name><field>material_no</field><condition>=</condition></key>
+      <value><name>sk_produk</name><rename>sk_produk</rename><default>1</default><type>Integer</type></value>
+      <value><name>harga_pokok_terkini</name><rename>harga_pokok_satuan</rename><default>0</default><type>Number</type></value>
+    </lookup>
+    <GUI><xloc>800</xloc><yloc>100</yloc><draw>Y</draw></GUI>
+  </step>
+
+  <step>
+    <name>Calculate Margin S3</name>
+    <type>ScriptValueMod</type>
+    <copies>1</copies>
+    <compatible>N</compatible>
+    <optimizationLevel>9</optimizationLevel>
+    <jsScripts>
+      <jsScript>
+        <jsScript_type>0</jsScript_type>
+        <jsScript_name>Script 1</jsScript_name>
+        <jsScript_script>
+var total_cogs = Math.round((qty * harga_pokok_satuan) * 100) / 100;
+var margin_kotor = Math.round((nilai_bersih_excl - total_cogs - fee_komisi) * 100) / 100;
+        </jsScript_script>
+      </jsScript>
+    </jsScripts>
+    <fields>
+      <field><name>total_cogs</name><rename>total_harga_pokok</rename><type>Number</type></field>
+      <field><name>margin_kotor</name><rename>margin_kotor</rename><type>Number</type></field>
+    </fields>
+    <GUI><xloc>940</xloc><yloc>100</yloc><draw>Y</draw></GUI>
+  </step>
+
+  <step>
+    <name>Insert Fact Penjualan S3</name>
+    <type>TableOutput</type>
+    <copies>1</copies>
+    <connection>nrg_dw_mysql</connection>
+    <schema/>
+    <table>fact_penjualan</table>
+    <commit>1000</commit>
+    <truncate>N</truncate>
+    <ignore_errors>N</ignore_errors>
+    <use_batch>Y</use_batch>
+    <specify_fields>Y</specify_fields>
+    <fields>
+      <field><column_name>sk_waktu</column_name><stream_name>sk_waktu</stream_name></field>
+      <field><column_name>sk_produk</column_name><stream_name>sk_produk</stream_name></field>
+      <field><column_name>sk_toko_kanal</column_name><stream_name>sk_toko_kanal</stream_name></field>
+      <field><column_name>sk_pelanggan</column_name><stream_name>sk_pelanggan</stream_name></field>
+      <field><column_name>sk_promosi</column_name><stream_name>sk_promosi</stream_name></field>
+      <field><column_name>no_transaksi</column_name><stream_name>invoice</stream_name></field>
+      <field><column_name>line_no</column_name><stream_name>line_no</stream_name></field>
+      <field><column_name>kanal</column_name><stream_name>kanal</stream_name></field>
+      <field><column_name>qty</column_name><stream_name>qty</stream_name></field>
+      <field><column_name>harga_satuan_excl</column_name><stream_name>harga_satuan_excl</stream_name></field>
+      <field><column_name>nilai_kotor_excl</column_name><stream_name>nilai_kotor_excl</stream_name></field>
+      <field><column_name>nilai_diskon_excl</column_name><stream_name>nilai_diskon_excl</stream_name></field>
+      <field><column_name>nilai_bersih_excl</column_name><stream_name>nilai_bersih_excl</stream_name></field>
+      <field><column_name>harga_pokok_satuan</column_name><stream_name>harga_pokok_satuan</stream_name></field>
+      <field><column_name>total_harga_pokok</column_name><stream_name>total_harga_pokok</stream_name></field>
+      <field><column_name>fee_komisi</column_name><stream_name>fee_komisi</stream_name></field>
+      <field><column_name>margin_kotor</column_name><stream_name>margin_kotor</stream_name></field>
+    </fields>
+    <GUI><xloc>1080</xloc><yloc>100</yloc><draw>Y</draw></GUI>
+  </step>
+</transformation>

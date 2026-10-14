@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<transformation>
+  <info>
+    <name>dim_produk_loader</name>
+    <description>Memuat Dimensi Produk dari S4 ERP Master dan Late-Arriving P-1061</description>
+    <trans_version>1.0</trans_version>
+    <trans_type>Normal</trans_type>
+    <directory>/</directory>
+  </info>
+  
+  <connection>
+    <name>nrg_dw_mysql</name>
+    <server>localhost</server>
+    <type>MYSQL</type>
+    <access>Native</access>
+    <database>nrg_dw</database>
+    <port>3306</port>
+    <username>root</username>
+    <password></password>
+    <servername/>
+    <data_tablespace/>
+    <index_tablespace/>
+    <attributes>
+      <attribute><code>FORCE_IDENTIFIERS_TO_LOWERCASE</code><attribute>N</attribute></attribute>
+      <attribute><code>FORCE_IDENTIFIERS_TO_UPPERCASE</code><attribute>N</attribute></attribute>
+      <attribute><code>IS_CLUSTERED</code><attribute>N</attribute></attribute>
+      <attribute><code>PORT_NUMBER</code><attribute>3306</attribute></attribute>
+      <attribute><code>PRESERVE_RESERVED_WORD_CASE</code><attribute>Y</attribute></attribute>
+      <attribute><code>QUOTE_ALL_FIELDS</code><attribute>N</attribute></attribute>
+      <attribute><code>STREAM_RESULTS</code><attribute>Y</attribute></attribute>
+      <attribute><code>SUPPORTS_BOOLEAN_DATA_TYPE</code><attribute>Y</attribute></attribute>
+      <attribute><code>SUPPORTS_TIMESTAMP_DATA_TYPE</code><attribute>Y</attribute></attribute>
+      <attribute><code>USE_POOLING</code><attribute>N</attribute></attribute>
+    </attributes>
+  </connection>
+  <connection>
+    <name>nrg_ecom_mysql</name>
+    <server>localhost</server>
+    <type>MYSQL</type>
+    <access>Native</access>
+    <database>nrg_ecom</database>
+    <port>3306</port>
+    <username>root</username>
+    <password></password>
+    <servername/>
+    <data_tablespace/>
+    <index_tablespace/>
+    <attributes>
+      <attribute><code>PORT_NUMBER</code><attribute>3306</attribute></attribute>
+    </attributes>
+  </connection>
+
+  <order>
+    <hop><from>Input S4 produk_master.csv</from><to>Sort by Material and Date</to><enabled>Y</enabled></hop>
+    <hop><from>Sort by Material and Date</from><to>Ambil Versi Terakhir</to><enabled>Y</enabled></hop>
+    <hop><from>Ambil Versi Terakhir</from><to>Append Late-Arriving ORD-9999</to><enabled>Y</enabled></hop>
+    <hop><from>Input Late-Arriving Row</from><to>Append Late-Arriving ORD-9999</to><enabled>Y</enabled></hop>
+    <hop><from>Append Late-Arriving ORD-9999</from><to>Insert / Update dim_produk</to><enabled>Y</enabled></hop>
+  </order>
+  <step>
+    <name>Input S4 produk_master.csv</name>
+    <type>CsvInput</type>
+    
+    <copies>1</copies>
+    <partitioning>
+      <method>none</method>
+      <schema_name/>
+    </partitioning>
+
+    <filename>${Internal.Transformation.Filename.Directory}/Data/S4_ERP_MASTER/produk_master.csv</filename>
+    <filename_field/>
+    <rownum_field/>
+    <include_filename>N</include_filename>
+    <separator>,</separator>
+    <enclosure>&quot;</enclosure>
+    <header>Y</header>
+    <buffer_size>50000</buffer_size>
+    <lazy_conversion>N</lazy_conversion>
+    <add_filename_result>N</add_filename_result>
+    <parallel>N</parallel>
+    <newline_possible>N</newline_possible>
+    <format>mixed</format>
+    <encoding>UTF-8</encoding>
+    <fields>
+      <field><name>material_no</name><type>String</type><trim_type>both</trim_type></field>
+      <field><name>nama_produk</name><type>String</type><trim_type>both</trim_type></field>
+      <field><name>brand</name><type>String</type><trim_type>both</trim_type></field>
+      <field><name>kategori</name><type>String</type><trim_type>both</trim_type></field>
+      <field><name>sub_kategori</name><type>String</type><trim_type>both</trim_type></field>
+      <field><name>harga_pokok</name><type>Number</type><trim_type>both</trim_type></field>
+      <field><name>supplier</name><type>String</type><trim_type>both</trim_type></field>
+      <field><name>status</name><type>String</type><trim_type>both</trim_type></field>
+      <field><name>berlaku_sejak</name><type>Date</type><format>yyyy-MM-dd</format><trim_type>both</trim_type></field>
+    </fields>
+    <GUI><xloc>100</xloc><yloc>100</yloc><draw>Y</draw></GUI>
+  </step>
+  <step>
+    <name>Sort by Material and Date</name>
+    <type>SortRows</type>
+    
+    <copies>1</copies>
+    <partitioning>
+      <method>none</method>
+      <schema_name/>
+    </partitioning>
+
+    <directory>%%java.io.tmpdir%%</directory>
+    <prefix>out</prefix>
+    <sort_size>1000000</sort_size>
+    <fields>
+      <field><name>material_no</name><ascending>Y</ascending><case_sensitive>N</case_sensitive></field>
+      <field><name>berlaku_sejak</name><ascending>Y</ascending><case_sensitive>N</case_sensitive></field>
+    </fields>
+    <GUI><xloc>280</xloc><yloc>100</yloc><draw>Y</draw></GUI>
+  </step>
+  <step>
+    <name>Ambil Versi Terakhir</name>
+    <type>GroupBy</type>
+    
+    <copies>1</copies>
+    <partitioning>
+      <method>none</method>
+      <schema_name/>
+    </partitioning>
+
+    <all_rows>N</all_rows>
+    <ignore_aggregate>N</ignore_aggregate>
+    <field_ignore/>
+    <directory>%%java.io.tmpdir%%</directory>
+    <prefix>grp</prefix>
+    <group>
+      <field><name>material_no</name></field>
+    </group>
+    <fields>
+      <field><aggregate>nama_produk</aggregate><subject>nama_produk</subject><type>LAST</type></field>
+      <field><aggregate>brand</aggregate><subject>brand</subject><type>LAST</type></field>
+      <field><aggregate>kategori</aggregate><subject>kategori</subject><type>LAST</type></field>
+      <field><aggregate>sub_kategori</aggregate><subject>sub_kategori</subject><type>LAST</type></field>
+      <field><aggregate>harga_pokok_terkini</aggregate><subject>harga_pokok</subject><type>LAST</type></field>
+      <field><aggregate>supplier</aggregate><subject>supplier</subject><type>LAST</type></field>
+      <field><aggregate>status_erp</aggregate><subject>status</subject><type>LAST</type></field>
+    </fields>
+    <GUI><xloc>460</xloc><yloc>100</yloc><draw>Y</draw></GUI>
+  </step>
+  <step>
+    <name>Input Late-Arriving Row</name>
+    <type>RowGenerator</type>
+    
+    <copies>1</copies>
+    <partitioning>
+      <method>none</method>
+      <schema_name/>
+    </partitioning>
+
+    <fields>
+      <field><name>material_no</name><type>String</type><nullif>P-1061</nullif></field>
+      <field><name>nama_produk</name><type>String</type><nullif>Smartphone Model Terbaru (Belum Terdaftar di ERP)</nullif></field>
+      <field><name>brand</name><type>String</type><nullif>Samsung</nullif></field>
+      <field><name>kategori</name><type>String</type><nullif>Elektronik</nullif></field>
+      <field><name>sub_kategori</name><type>String</type><nullif>Smartphone</nullif></field>
+      <field><name>harga_pokok_terkini</name><type>Number</type><nullif>0</nullif></field>
+      <field><name>supplier</name><type>String</type><nullif>Belum Ditentukan</nullif></field>
+      <field><name>status_erp</name><type>String</type><nullif>BELUM_TERDAFTAR_ERP</nullif></field>
+    </fields>
+    <limit>1</limit>
+    <GUI><xloc>460</xloc><yloc>220</yloc><draw>Y</draw></GUI>
+  </step>
+  <step>
+    <name>Append Late-Arriving ORD-9999</name>
+    <type>Append</type>
+    
+    <copies>1</copies>
+    <partitioning>
+      <method>none</method>
+      <schema_name/>
+    </partitioning>
+
+    <head_name>Ambil Versi Terakhir</head_name>
+    <tail_name>Input Late-Arriving Row</tail_name>
+    <GUI><xloc>640</xloc><yloc>100</yloc><draw>Y</draw></GUI>
+  </step>
+  <step>
+    <name>Insert / Update dim_produk</name>
+    <type>InsertUpdate</type>
+    
+    <copies>1</copies>
+    <partitioning>
+      <method>none</method>
+      <schema_name/>
+    </partitioning>
+
+    <connection>nrg_dw_mysql</connection>
+    <commit>100</commit>
+    <lookup>
+      <schema/>
+      <table>dim_produk</table>
+      <key><name>material_no</name><field>material_no</field><condition>=</condition></key>
+      <value><name>material_no</name><rename>material_no</rename><update>Y</update></value>
+      <value><name>nama_produk</name><rename>nama_produk</rename><update>Y</update></value>
+      <value><name>brand</name><rename>brand</rename><update>Y</update></value>
+      <value><name>kategori</name><rename>kategori</rename><update>Y</update></value>
+      <value><name>sub_kategori</name><rename>sub_kategori</rename><update>Y</update></value>
+      <value><name>harga_pokok_terkini</name><rename>harga_pokok_terkini</rename><update>Y</update></value>
+      <value><name>supplier</name><rename>supplier</rename><update>Y</update></value>
+      <value><name>status_erp</name><rename>status_erp</rename><update>Y</update></value>
+    </lookup>
+    <GUI><xloc>840</xloc><yloc>100</yloc><draw>Y</draw></GUI>
+  </step>
+</transformation>

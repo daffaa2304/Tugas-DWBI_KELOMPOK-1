@@ -1,0 +1,253 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<transformation>
+  <info>
+    <name>dim_pelanggan_loader</name>
+    <description>Memuat Dimensi Pelanggan dan Resolusi Omnichannel HP</description>
+    <trans_version>1.0</trans_version>
+    <trans_type>Normal</trans_type>
+    <directory>/</directory>
+  </info>
+  
+  <connection>
+    <name>nrg_dw_mysql</name>
+    <server>localhost</server>
+    <type>MYSQL</type>
+    <access>Native</access>
+    <database>nrg_dw</database>
+    <port>3306</port>
+    <username>root</username>
+    <password></password>
+    <servername/>
+    <data_tablespace/>
+    <index_tablespace/>
+    <attributes>
+      <attribute><code>FORCE_IDENTIFIERS_TO_LOWERCASE</code><attribute>N</attribute></attribute>
+      <attribute><code>FORCE_IDENTIFIERS_TO_UPPERCASE</code><attribute>N</attribute></attribute>
+      <attribute><code>IS_CLUSTERED</code><attribute>N</attribute></attribute>
+      <attribute><code>PORT_NUMBER</code><attribute>3306</attribute></attribute>
+      <attribute><code>PRESERVE_RESERVED_WORD_CASE</code><attribute>Y</attribute></attribute>
+      <attribute><code>QUOTE_ALL_FIELDS</code><attribute>N</attribute></attribute>
+      <attribute><code>STREAM_RESULTS</code><attribute>Y</attribute></attribute>
+      <attribute><code>SUPPORTS_BOOLEAN_DATA_TYPE</code><attribute>Y</attribute></attribute>
+      <attribute><code>SUPPORTS_TIMESTAMP_DATA_TYPE</code><attribute>Y</attribute></attribute>
+      <attribute><code>USE_POOLING</code><attribute>N</attribute></attribute>
+    </attributes>
+  </connection>
+  <connection>
+    <name>nrg_ecom_mysql</name>
+    <server>localhost</server>
+    <type>MYSQL</type>
+    <access>Native</access>
+    <database>nrg_ecom</database>
+    <port>3306</port>
+    <username>root</username>
+    <password></password>
+    <servername/>
+    <data_tablespace/>
+    <index_tablespace/>
+    <attributes>
+      <attribute><code>PORT_NUMBER</code><attribute>3306</attribute></attribute>
+    </attributes>
+  </connection>
+
+  <order>
+    <hop><from>Input Pelanggan Web S1</from><to>Normalisasi HP Pelanggan</to><enabled>Y</enabled></hop>
+    <hop><from>Input Member Toko S2</from><to>Normalisasi HP Member Toko</to><enabled>Y</enabled></hop>
+    <hop><from>Normalisasi HP Pelanggan</from><to>Lookup Member Toko by HP</to><enabled>Y</enabled></hop>
+    <hop><from>Normalisasi HP Member Toko</from><to>Lookup Member Toko by HP</to><enabled>Y</enabled></hop>
+    <hop><from>Lookup Member Toko by HP</from><to>Set Status Omnichannel</to><enabled>Y</enabled></hop>
+    <hop><from>Set Status Omnichannel</from><to>Insert / Update dim_pelanggan</to><enabled>Y</enabled></hop>
+  </order>
+  <step>
+    <name>Input Pelanggan Web S1</name>
+    <type>TableInput</type>
+    
+    <copies>1</copies>
+    <partitioning>
+      <method>none</method>
+      <schema_name/>
+    </partitioning>
+
+    <connection>nrg_ecom_mysql</connection>
+    <sql>SELECT c.customer_id, c.full_name, c.phone, c.gender, COALESCE(a.city, 'Tidak Diketahui') AS city FROM customers c LEFT JOIN customer_addresses a ON c.customer_id = a.customer_id AND a.is_primary = 1</sql>
+    <GUI><xloc>100</xloc><yloc>80</yloc><draw>Y</draw></GUI>
+  </step>
+  <step>
+    <name>Input Member Toko S2</name>
+    <type>CsvInput</type>
+    
+    <copies>1</copies>
+    <partitioning>
+      <method>none</method>
+      <schema_name/>
+    </partitioning>
+
+    <filename>${Internal.Transformation.Filename.Directory}/Data/S2_POS_TOKO/member.csv</filename>
+    <filename_field/>
+    <rownum_field/>
+    <include_filename>N</include_filename>
+    <separator>;</separator>
+    <enclosure>&quot;</enclosure>
+    <header>Y</header>
+    <buffer_size>50000</buffer_size>
+    <lazy_conversion>N</lazy_conversion>
+    <add_filename_result>N</add_filename_result>
+    <parallel>N</parallel>
+    <newline_possible>N</newline_possible>
+    <format>mixed</format>
+    <encoding>UTF-8</encoding>
+    <fields>
+      <field><name>member_no</name><type>String</type><trim_type>both</trim_type></field>
+      <field><name>member_name</name><type>String</type><trim_type>both</trim_type></field>
+      <field><name>hp</name><type>String</type><trim_type>both</trim_type></field>
+      <field><name>kota</name><type>String</type><trim_type>both</trim_type></field>
+    </fields>
+    <GUI><xloc>100</xloc><yloc>200</yloc><draw>Y</draw></GUI>
+  </step>
+  <step>
+    <name>Normalisasi HP Member Toko</name>
+    <type>ScriptValueMod</type>
+    
+    <copies>1</copies>
+    <partitioning>
+      <method>none</method>
+      <schema_name/>
+    </partitioning>
+
+    <compatible>N</compatible>
+    <optimizationLevel>9</optimizationLevel>
+    <jsScripts>
+      <jsScript>
+        <jsScript_type>0</jsScript_type>
+        <jsScript_name>Script 1</jsScript_name>
+        <jsScript_script>
+var p_str = hp != null ? "" + hp : "";
+var d = p_str.replace(/\D/g, "");
+if (d.indexOf("62") == 0) {
+    d = d.substring(2);
+} else if (d.indexOf("0") == 0) {
+    d = d.substring(1);
+}
+var norm_hp_member = d;
+        </jsScript_script>
+      </jsScript>
+    </jsScripts>
+    <fields>
+      <field><name>norm_hp_member</name><rename>norm_hp_member</rename><type>String</type></field>
+    </fields>
+    <GUI><xloc>280</xloc><yloc>200</yloc><draw>Y</draw></GUI>
+  </step>
+  <step>
+    <name>Normalisasi HP Pelanggan</name>
+    <type>ScriptValueMod</type>
+    
+    <copies>1</copies>
+    <partitioning>
+      <method>none</method>
+      <schema_name/>
+    </partitioning>
+
+    <compatible>N</compatible>
+    <optimizationLevel>9</optimizationLevel>
+    <jsScripts>
+      <jsScript>
+        <jsScript_type>0</jsScript_type>
+        <jsScript_name>Script 1</jsScript_name>
+        <jsScript_script>
+var p_str = phone != null ? "" + phone : "";
+var d = p_str.replace(/\D/g, "");
+if (d.indexOf("62") == 0) {
+    d = d.substring(2);
+} else if (d.indexOf("0") == 0) {
+    d = d.substring(1);
+}
+var norm_hp = d;
+        </jsScript_script>
+      </jsScript>
+    </jsScripts>
+    <fields>
+      <field><name>norm_hp</name><rename>norm_hp</rename><type>String</type></field>
+    </fields>
+    <GUI><xloc>280</xloc><yloc>80</yloc><draw>Y</draw></GUI>
+  </step>
+  <step>
+    <name>Lookup Member Toko by HP</name>
+    <type>StreamLookup</type>
+    
+    <copies>1</copies>
+    <partitioning>
+      <method>none</method>
+      <schema_name/>
+    </partitioning>
+
+    <from>Normalisasi HP Member Toko</from>
+    <input_sorted>N</input_sorted>
+    <preserve_memory>Y</preserve_memory>
+    <sorted_list>N</sorted_list>
+    <integer_pair>N</integer_pair>
+    <lookup>
+      <key><name>norm_hp</name><field>norm_hp_member</field></key>
+      <value><name>member_no</name><rename>matched_member_no</rename><default/></value>
+      <value><name>member_name</name><rename>matched_member_name</rename><default/></value>
+    </lookup>
+    <GUI><xloc>460</xloc><yloc>80</yloc><draw>Y</draw></GUI>
+  </step>
+  <step>
+    <name>Set Status Omnichannel</name>
+    <type>ScriptValueMod</type>
+    
+    <copies>1</copies>
+    <partitioning>
+      <method>none</method>
+      <schema_name/>
+    </partitioning>
+
+    <compatible>N</compatible>
+    <optimizationLevel>9</optimizationLevel>
+    <jsScripts>
+      <jsScript>
+        <jsScript_type>0</jsScript_type>
+        <jsScript_name>Script 1</jsScript_name>
+        <jsScript_script>
+var is_omnichannel = (matched_member_no != null &amp;&amp; matched_member_no != "") ? 1 : 0;
+var status_member = is_omnichannel == 1 ? "MEMBER_DAN_WEB" : "NON_MEMBER_WEB";
+var no_identitas_asal = is_omnichannel == 1 ? "CUST-" + customer_id + "|" + matched_member_no : "CUST-" + customer_id;
+var jenis_kelamin = gender == "M" ? "Laki-Laki" : (gender == "F" ? "Perempuan" : "TIDAK_DIKETAHUI");
+        </jsScript_script>
+      </jsScript>
+    </jsScripts>
+    <fields>
+      <field><name>is_omnichannel</name><rename>is_omnichannel</rename><type>Integer</type></field>
+      <field><name>status_member</name><rename>status_member</rename><type>String</type></field>
+      <field><name>no_identitas_asal</name><rename>no_identitas_asal</rename><type>String</type></field>
+      <field><name>jenis_kelamin</name><rename>jenis_kelamin</rename><type>String</type></field>
+    </fields>
+    <GUI><xloc>660</xloc><yloc>80</yloc><draw>Y</draw></GUI>
+  </step>
+  <step>
+    <name>Insert / Update dim_pelanggan</name>
+    <type>InsertUpdate</type>
+    
+    <copies>1</copies>
+    <partitioning>
+      <method>none</method>
+      <schema_name/>
+    </partitioning>
+
+    <connection>nrg_dw_mysql</connection>
+    <commit>100</commit>
+    <lookup>
+      <schema/>
+      <table>dim_pelanggan</table>
+      <key><name>norm_hp</name><field>no_hp_normal</field><condition>=</condition></key>
+      <value><name>no_identitas_asal</name><rename>no_identitas_asal</rename><update>Y</update></value>
+      <value><name>nama_pelanggan</name><rename>full_name</rename><update>Y</update></value>
+      <value><name>no_hp_normal</name><rename>norm_hp</rename><update>Y</update></value>
+      <value><name>status_member</name><rename>status_member</rename><update>Y</update></value>
+      <value><name>kota</name><rename>city</rename><update>Y</update></value>
+      <value><name>jenis_kelamin</name><rename>jenis_kelamin</rename><update>Y</update></value>
+      <value><name>is_omnichannel</name><rename>is_omnichannel</rename><update>Y</update></value>
+    </lookup>
+    <GUI><xloc>860</xloc><yloc>80</yloc><draw>Y</draw></GUI>
+  </step>
+</transformation>
